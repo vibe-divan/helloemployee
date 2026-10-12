@@ -1,6 +1,7 @@
 import { defineConfig } from "vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
   resolve: { tsconfigPaths: true },
@@ -10,6 +11,8 @@ export default defineConfig({
 
   plugins: [
     tanstackStart({
+      // app is static-only
+      spa: { enabled: true },
       router: {
         generatedRouteTree: "./router-tree.gen.ts",
       },
@@ -17,5 +20,6 @@ export default defineConfig({
 
     // react vite plugin must come after start vite plugin
     viteReact(),
+    tailwindcss(),
   ],
 });
