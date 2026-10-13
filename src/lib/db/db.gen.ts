@@ -3,6 +3,58 @@
  * Please do not edit it manually.
  */
 
+export interface Document {
+  created_at: string;
+  file_name: string;
+  format: string;
+  id: string;
+  mime_type: string;
+  owner_id: string;
+  role: string;
+  size: string;
+  storage_key: string;
+}
+
+export interface DocumentField {
+  constraints: string | null;
+  created_at: string;
+  description: string | null;
+  id: string;
+  label: string;
+  name: string;
+  position: number;
+  required: number;
+  status: string;
+  template_id: string;
+  type: string;
+  updated_at: string;
+  value: string | null;
+}
+
+export interface DocumentSession {
+  attempts: number;
+  completed_at: string | null;
+  created_at: string;
+  error: string | null;
+  id: string;
+  max_attempts: number;
+  output_format: string | null;
+  owner_id: string;
+  result_document_id: string | null;
+  source_document_id: string;
+  status: string;
+  template_id: string | null;
+  updated_at: string;
+}
+
+export interface DocumentTemplate {
+  created_at: string;
+  id: string;
+  source_document_id: string;
+  title: string;
+  updated_at: string;
+}
+
 export interface Session {
   created_at: string;
   expires_at: string;
@@ -19,6 +71,10 @@ export interface User {
 }
 
 export interface DB {
+  document: Document;
+  document_field: DocumentField;
+  document_session: DocumentSession;
+  document_template: DocumentTemplate;
   session: Session;
   user: User;
 }

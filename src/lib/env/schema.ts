@@ -7,8 +7,15 @@ export const envSchema = v.object({
   DB_READ_URL: v.string(),
   DB_WRITE_URL: v.string(),
 
-  // Encrypts session cookies. Must be at least 32 characters.
-  SESSION_SECRET: v.pipe(v.string(), v.minLength(32)),
+  DEEPSEEK_API_KEY: v.string(),
+  DEEPSEEK_BASE_URL: v.optional(v.string(), "https://api.deepseek.com"),
+  DEEPSEEK_MODEL: v.optional(v.string(), "deepseek-flash"),
+
+  STORAGE_DIR: v.optional(v.string(), "./.data/storage"),
+  QUEUE_DB_PATH: v.optional(v.string(), "./.data/queue.db"),
+
+  // Optional TTF/OTF used to render Cyrillic text into generated PDFs.
+  PDF_FONT_PATH: v.optional(v.string(), ""),
 });
 
 export type Env = v.InferOutput<typeof envSchema>;

@@ -1,4 +1,9 @@
+import { useCallback, useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
+import { getActiveDocumentSession, type DocumentSessionView } from "@/core/docs";
+import { isActiveStatus } from "@/core/docs/types.ts";
+import { DocumentPicker, DocumentSession } from "@/core/docs/ui";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/lib/ui/card";
 
 export const Route = createFileRoute("/_app/")({
@@ -7,34 +12,53 @@ export const Route = createFileRoute("/_app/")({
 
 function Dashboard() {
   const { user } = Route.useRouteContext();
+  const fetchActive = useServerFn(getActiveDocumentSession);
+  const [session, setSession] = useState<DocumentSessionView | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = useCallback(async () => {
+    const result = await fetchActive();
+    setSession(result.session);
+    setLoading(false);
+  }, [fetchActive]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  // Poll while background work (analysis/generation) is in progress.
+  useEffect(() => {
+    if (!session || !isActiveStatus(session.status)) {
+      return;
+    }
+    const interval = setInterval(() => {
+      void refresh();
+    }, 2500);
+    return () => clearInterval(interval);
+  }, [session, refresh]);
 
   return (
     <div className="grid gap-6">
       <div>
-        <h1 className="text-2xl font-semibold">Dashboard</h1>
-        <p className="text-sm text-muted-foreground">Welcome back, {user.login}.</p>
+        <h1 className="text-2xl font-semibold">Заполнение документов</h1>
+        <p className="text-sm text-muted-foreground">Здравствуйте, {user.login}.</p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      {loading ? (
+        <p className="text-sm text-muted-foreground">Загрузка…</p>
+      ) : session ? (
+        <DocumentSession session={session} onChanged={refresh} />
+      ) : (
         <Card>
           <CardHeader>
-            <CardTitle>Your account</CardTitle>
-            <CardDescription>Identity from the active session.</CardDescription>
+            <CardTitle>Нет активной сессии</CardTitle>
+            <CardDescription>Загрузите документ, чтобы начать.</CardDescription>
           </CardHeader>
-          <CardContent className="text-sm">
-            <dl className="grid gap-2">
-              <div className="flex items-center justify-between gap-4">
-                <dt className="text-muted-foreground">Login</dt>
-                <dd className="font-medium">{user.login}</dd>
-              </div>
-              <div className="flex items-center justify-between gap-4">
-                <dt className="text-muted-foreground">User ID</dt>
-                <dd className="font-mono text-xs">{user.id}</dd>
-              </div>
-            </dl>
-          </CardContent>
+          <CardContent />
         </Card>
-      </div>
+      )}
+
+      <DocumentPicker onStarted={refresh} />
     </div>
   );
 }

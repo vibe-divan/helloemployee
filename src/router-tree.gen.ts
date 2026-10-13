@@ -12,7 +12,9 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
+import { Route as AppJournalRouteImport } from './routes/_app/journal'
 import { Route as AppUserRouteImport } from './routes/_app/user'
+import { Route as ApiDocumentsIdRouteImport } from './routes/api.documents.$id'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
@@ -28,40 +30,64 @@ const AppIndexRoute = AppIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppRoute,
 } as any)
+const AppJournalRoute = AppJournalRouteImport.update({
+  id: '/journal',
+  path: '/journal',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppUserRoute = AppUserRouteImport.update({
   id: '/user',
   path: '/user',
   getParentRoute: () => AppRoute,
 } as any)
+const ApiDocumentsIdRoute = ApiDocumentsIdRouteImport.update({
+  id: '/api/documents/$id',
+  path: '/api/documents/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/login': typeof LoginRoute
+  '/journal': typeof AppJournalRoute
   '/user': typeof AppUserRoute
+  '/api/documents/$id': typeof ApiDocumentsIdRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
+  '/journal': typeof AppJournalRoute
   '/user': typeof AppUserRoute
   '/': typeof AppIndexRoute
+  '/api/documents/$id': typeof ApiDocumentsIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
   '/login': typeof LoginRoute
+  '/_app/journal': typeof AppJournalRoute
   '/_app/user': typeof AppUserRoute
   '/_app/': typeof AppIndexRoute
+  '/api/documents/$id': typeof ApiDocumentsIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/user'
+  fullPaths: '/' | '/login' | '/journal' | '/user' | '/api/documents/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/login' | '/user' | '/'
-  id: '__root__' | '/_app' | '/login' | '/_app/user' | '/_app/'
+  to: '/login' | '/journal' | '/user' | '/' | '/api/documents/$id'
+  id:
+    | '__root__'
+    | '/_app'
+    | '/login'
+    | '/_app/journal'
+    | '/_app/user'
+    | '/_app/'
+    | '/api/documents/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
   LoginRoute: typeof LoginRoute
+  ApiDocumentsIdRoute: typeof ApiDocumentsIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -87,6 +113,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/journal': {
+      id: '/_app/journal'
+      path: '/journal'
+      fullPath: '/journal'
+      preLoaderRoute: typeof AppJournalRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/user': {
       id: '/_app/user'
       path: '/user'
@@ -94,15 +127,24 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppUserRouteImport
       parentRoute: typeof AppRoute
     }
+    '/api/documents/$id': {
+      id: '/api/documents/$id'
+      path: '/api/documents/$id'
+      fullPath: '/api/documents/$id'
+      preLoaderRoute: typeof ApiDocumentsIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 interface AppRouteChildren {
+  AppJournalRoute: typeof AppJournalRoute
   AppUserRoute: typeof AppUserRoute
   AppIndexRoute: typeof AppIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppJournalRoute: AppJournalRoute,
   AppUserRoute: AppUserRoute,
   AppIndexRoute: AppIndexRoute,
 }
@@ -112,6 +154,7 @@ const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
   LoginRoute: LoginRoute,
+  ApiDocumentsIdRoute: ApiDocumentsIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

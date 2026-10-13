@@ -1,1 +1,8 @@
-words = ["kysely", "oxlint", "oxfmt", "oxc", "valibot"]
+words = [
+  "kysely",
+  "oxlint",
+  "oxfmt",
+  "oxc",
+  "valibot",
+  "deepseek",
+]

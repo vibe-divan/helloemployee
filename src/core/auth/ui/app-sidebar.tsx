@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useRouter, useRouterState } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { BoxesIcon, LayoutDashboardIcon, LogOutIcon, UsersIcon } from "lucide-react";
+import { BoxesIcon, FilesIcon, LayoutDashboardIcon, LogOutIcon, UsersIcon } from "lucide-react";
 import { signOut, type AuthUser } from "@/core/auth";
 import { Avatar, AvatarFallback } from "@/lib/ui/avatar";
 import {
@@ -20,6 +20,7 @@ import {
 
 const navItems = [
   { to: "/", label: "Dashboard", icon: LayoutDashboardIcon },
+  { to: "/journal", label: "Журнал", icon: FilesIcon },
   { to: "/user", label: "Users", icon: UsersIcon },
 ] as const;
 
