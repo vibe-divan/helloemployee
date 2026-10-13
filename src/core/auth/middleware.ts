@@ -1,31 +1,46 @@
-import { createMiddleware } from "@tanstack/react-start";
-import { db } from "@/lib/db";
-import { useAppSession } from "./session.ts";
-import type { AuthUser } from "./types.ts";
+import { createMiddleware, createServerFn } from "@tanstack/react-start";
+import { getSession } from "@/core/sessions/get-session.ts";
+import { getSessionId } from "@/core/sessions/session-cookie.ts";
 
 /**
- * Guards server functions. Resolves the viewer from the session cookie and
- * injects it into `context`; rejects the call when unauthenticated.
+ * Middleware that extracts the session from the `sessid` cookie and attaches it
+ * to context. **Does NOT reject unauthenticated requests** — session is null.
  */
-export const authMiddleware = createMiddleware({ type: "function" }).server(async ({ next }) => {
-  const session = await useAppSession();
-  const userId = session.data.userId;
+const authorizedMiddleware = createMiddleware({ type: "function" }).server(async ({ next }) => {
+  const sessionId = getSessionId();
+  const session = sessionId ? await getSession(sessionId) : null;
 
-  if (!userId) {
-    throw new Error("Unauthorized");
-  }
-
-  const user = await db.readOnly
-    .selectFrom("user")
-    .selectAll()
-    .where("id", "=", userId)
-    .executeTakeFirst();
-
-  if (!user) {
-    await session.clear();
-    throw new Error("Unauthorized");
-  }
-
-  const viewer: AuthUser = { id: user.id, login: user.login };
-  return next({ context: { viewer } });
+  return next({ context: { session } });
 });
+
+/**
+ * Middleware that requires an authenticated session.
+ */
+const privateMiddleware = createMiddleware({ type: "function" })
+  .middleware([authorizedMiddleware])
+  .server(async ({ next, context }) => {
+    const session = context.session;
+    if (!session) {
+      throw new Error("Unauthorized");
+    }
+
+    return next({ context: { session } });
+  });
+
+/**
+ * Server function factory for endpoints that may access the session but
+ * **don't require it**. Session is available as `context.session` (nullable).
+ */
+export const authorizedServerFn = createServerFn().middleware([authorizedMiddleware]);
+
+/**
+ * Server function factory for endpoints that require authentication.
+ * Throws "Unauthorized" when no valid session is present.
+ */
+export const privateServerFn = createServerFn().middleware([privateMiddleware]);
+
+/**
+ * Server function factory for public endpoints that don't need session access.
+ * No session data is attached to context.
+ */
+export const publicServerFn = createServerFn().middleware([]);

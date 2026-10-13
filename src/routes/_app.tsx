@@ -1,5 +1,7 @@
 import { Outlet, createFileRoute, redirect } from "@tanstack/react-router";
-import { AppHeader } from "@/core/auth/ui";
+import { AppSidebar } from "@/core/auth/ui";
+import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/lib/ui/sidebar";
+import { TooltipProvider } from "@/lib/ui/tooltip";
 
 export const Route = createFileRoute("/_app")({
   beforeLoad: ({ context }) => {
@@ -15,11 +17,18 @@ function AppShell() {
   const { user } = Route.useRouteContext();
 
   return (
-    <div className="flex min-h-svh flex-col">
-      <AppHeader user={user} />
-      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">
-        <Outlet />
-      </main>
-    </div>
+    <SidebarProvider>
+      <TooltipProvider>
+        <AppSidebar user={user} />
+        <SidebarInset>
+          <div className="p-2 md:hidden">
+            <SidebarTrigger />
+          </div>
+          <div className="flex-1 p-4 md:p-6">
+            <Outlet />
+          </div>
+        </SidebarInset>
+      </TooltipProvider>
+    </SidebarProvider>
   );
 }

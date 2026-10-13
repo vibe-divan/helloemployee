@@ -1,9 +1,9 @@
-import { createServerFn } from "@tanstack/react-start";
 import { sql } from "kysely";
 import * as v from "valibot";
 import { db } from "@/lib/db";
+import { createSession, deleteSession, getSessionId, setSessionId } from "@/core/sessions";
 import { verifyPassword } from "@/lib/security";
-import { useAppSession } from "./session.ts";
+import { publicServerFn } from "./middleware.ts";
 import type { AuthUser } from "./types.ts";
 
 export const signInSchema = v.object({
@@ -13,8 +13,8 @@ export const signInSchema = v.object({
 
 export type SignInParams = v.InferOutput<typeof signInSchema>;
 
-/** Verifies credentials and starts a session. */
-export const signIn = createServerFn({ method: "POST" })
+/** Verifies credentials and starts a server-side session. */
+export const signIn = publicServerFn({ method: "POST" })
   .validator((data: SignInParams) => v.parse(signInSchema, data))
   .handler(async ({ data }) => {
     const user = await db.readOnly
@@ -27,8 +27,14 @@ export const signIn = createServerFn({ method: "POST" })
       return { ok: false as const, error: "Invalid login or password" };
     }
 
-    const session = await useAppSession();
-    await session.update({ userId: user.id });
+    // Drop a prior session of this browser so orphaned rows don't accumulate.
+    const previousId = getSessionId();
+    if (previousId) {
+      await deleteSession(previousId);
+    }
+
+    const session = await createSession(user.id);
+    setSessionId(session.id);
 
     const authUser: AuthUser = { id: user.id, login: user.login };
     return { ok: true as const, user: authUser };

@@ -3,6 +3,13 @@
  * Please do not edit it manually.
  */
 
+export interface Session {
+  created_at: string;
+  expires_at: string;
+  id: string;
+  user_id: string;
+}
+
 export interface User {
   created_at: string;
   id: string;
@@ -12,5 +19,6 @@ export interface User {
 }
 
 export interface DB {
+  session: Session;
   user: User;
 }
