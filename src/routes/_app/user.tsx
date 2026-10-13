@@ -1,14 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { listUsers } from "@/core/auth";
+import { useQuery } from "@tanstack/react-query";
+import { usersQuery } from "@/core/auth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/lib/ui/card";
+import { ErrorAlert } from "@/lib/ui/error-alert";
 
 export const Route = createFileRoute("/_app/user")({
-  loader: () => listUsers(),
   component: UsersPage,
 });
 
 function UsersPage() {
-  const { users } = Route.useLoaderData();
+  const { data, isPending, isError, error } = useQuery(usersQuery);
+  const users = data?.users ?? [];
 
   return (
     <div className="grid gap-6">
@@ -19,10 +21,12 @@ function UsersPage() {
         </p>
       </div>
 
+      {isError ? <ErrorAlert title="Не удалось загрузить пользователей" error={error} /> : null}
+
       <Card>
         <CardHeader>
           <CardTitle>All users</CardTitle>
-          <CardDescription>{users.length} account(s)</CardDescription>
+          <CardDescription>{isPending ? "Loading…" : `${users.length} account(s)`}</CardDescription>
         </CardHeader>
         <CardContent>
           <ul className="divide-y">

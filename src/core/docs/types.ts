@@ -27,6 +27,8 @@ export interface DocumentField {
   required: boolean;
   constraints: FieldConstraints;
   description: string | null;
+  /** Literal text/cell/field in the source document to substitute in place. */
+  anchor: string | null;
   value: string | null;
   status: DocumentFieldStatus;
   position: number;

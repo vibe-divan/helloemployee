@@ -44,21 +44,21 @@ async function migrateToLatest() {
   if (values.reset) {
     console.warn(`${warnIcon}${yellow}Database reset started${reset}`);
 
-    const userSchemas = await sql<{ nspname: string }>`
-			select nspname from pg_catalog.pg_namespace
-			where nspname not like 'pg_%' and nspname != 'information_schema'
+    // Foreign keys off so tables can be dropped in any order.
+    await sql`pragma foreign_keys = off`.execute(db.readWrite);
+
+    const objects = await sql<{ name: string; type: string }>`
+			select name, type from sqlite_master
+			where type in ('table', 'view') and name not like 'sqlite_%'
 		`.execute(db.readWrite);
 
-    for (const row of userSchemas.rows) {
-      await sql.raw(`drop schema ${row.nspname} cascade`).execute(db.readWrite);
-      console.warn(`${gray}├─${reset} ${stepSuccessIcon}Schema "${row.nspname}" dropped`);
+    for (const object of objects.rows) {
+      await sql.raw(`drop ${object.type} if exists "${object.name}"`).execute(db.readWrite);
+      console.warn(`${gray}├─${reset} ${stepSuccessIcon}Dropped ${object.type} "${object.name}"`);
     }
 
-    await sql`create schema public`.execute(db.readWrite);
-    console.warn(`${gray}├─${reset} ${stepSuccessIcon}Schema "public" recreated`);
-
-    await sql`grant all on schema public to public`.execute(db.readWrite);
-    console.warn(`${gray}└─${reset} ${stepSuccessIcon}Granted all on schema "public"\n`);
+    await sql`pragma foreign_keys = on`.execute(db.readWrite);
+    console.warn(`${gray}└─${reset} ${stepSuccessIcon}Dropped ${objects.rows.length} object(s)\n`);
   }
 
   const migrator = new Migrator({

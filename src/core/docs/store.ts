@@ -1,3 +1,4 @@
+import type { Selectable } from "kysely";
 import { db } from "@/lib/db";
 import type {
   Document as DocumentRow,
@@ -31,7 +32,7 @@ function parseConstraints(raw: string | null): FieldConstraints {
   }
 }
 
-function toField(row: DocumentFieldRow): DocumentField {
+function toField(row: Selectable<DocumentFieldRow>): DocumentField {
   return {
     id: row.id,
     name: row.name,
@@ -40,6 +41,7 @@ function toField(row: DocumentFieldRow): DocumentField {
     required: row.required === 1,
     constraints: parseConstraints(row.constraints),
     description: row.description,
+    anchor: row.anchor,
     value: row.value,
     status: row.status as DocumentFieldStatus,
     position: row.position,
@@ -235,6 +237,8 @@ export interface NewField {
   required: boolean;
   constraints: FieldConstraints;
   description: string | null;
+  anchor: string | null;
+  value: string | null;
   position: number;
 }
 
@@ -255,8 +259,9 @@ export async function insertFields(fields: NewField[]): Promise<void> {
         required: field.required ? 1 : 0,
         constraints: JSON.stringify(field.constraints),
         description: field.description,
-        value: null,
-        status: "pending",
+        anchor: field.anchor,
+        value: field.value,
+        status: field.value ? "filled" : "pending",
         position: field.position,
         created_at: now,
         updated_at: now,

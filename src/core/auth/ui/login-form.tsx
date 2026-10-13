@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { useRouter } from "@tanstack/react-router";
-import { useServerFn } from "@tanstack/react-start";
 import { useForm } from "@tanstack/react-form";
+import { useMutation } from "@tanstack/react-query";
 import { AlertCircleIcon, Loader2Icon } from "lucide-react";
-import { signIn, signInSchema, type SignInParams } from "@/core/auth";
+import { signInMutation, signInSchema, type SignInParams } from "@/core/auth";
 import { Alert, AlertDescription, AlertTitle } from "@/lib/ui/alert";
 import { Button } from "@/lib/ui/button";
 import {
@@ -41,7 +41,7 @@ const defaultValues: SignInParams = { login: "", password: "" };
 
 export function LoginForm() {
   const router = useRouter();
-  const requestSignIn = useServerFn(signIn);
+  const signIn = useMutation(signInMutation);
   const [error, setError] = useState("");
 
   const form = useForm({
@@ -50,7 +50,7 @@ export function LoginForm() {
     onSubmit: async ({ value }) => {
       setError("");
       try {
-        const result = await requestSignIn({ data: value });
+        const result = await signIn.mutateAsync(value);
         if (!result.ok) {
           setError(result.error);
           return;

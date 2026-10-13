@@ -1,12 +1,12 @@
-import { useEffect, useState } from "react";
-import { useServerFn } from "@tanstack/react-start";
+import { useQuery } from "@tanstack/react-query";
 import { DownloadIcon } from "lucide-react";
 import {
-  listDocumentSessions,
+  documentSessionsQuery,
   type DocumentSessionStatus,
   type DocumentSessionView,
 } from "@/core/docs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/lib/ui/card";
+import { ErrorAlert } from "@/lib/ui/error-alert";
 
 const STATUS_LABELS: Record<DocumentSessionStatus, string> = {
   analyzing: "Анализ",
@@ -22,16 +22,8 @@ function formatDate(timestamp: string): string {
 }
 
 export function SessionJournal() {
-  const fetchSessions = useServerFn(listDocumentSessions);
-  const [sessions, setSessions] = useState<DocumentSessionView[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    void fetchSessions().then((result) => {
-      setSessions(result.sessions);
-      setLoading(false);
-    });
-  }, [fetchSessions]);
+  const { data, isPending, isError, error } = useQuery(documentSessionsQuery);
+  const sessions: DocumentSessionView[] = data?.sessions ?? [];
 
   return (
     <Card>
@@ -40,8 +32,9 @@ export function SessionJournal() {
         <CardDescription>Все сессии обработки документов (read-only), с автором.</CardDescription>
       </CardHeader>
       <CardContent>
-        {loading ? <p className="text-sm text-muted-foreground">Загрузка…</p> : null}
-        {!loading && sessions.length === 0 ? (
+        {isError ? <ErrorAlert title="Не удалось загрузить журнал" error={error} /> : null}
+        {isPending ? <p className="text-sm text-muted-foreground">Загрузка…</p> : null}
+        {!isPending && !isError && sessions.length === 0 ? (
           <p className="text-sm text-muted-foreground">Пока нет сессий.</p>
         ) : null}
 

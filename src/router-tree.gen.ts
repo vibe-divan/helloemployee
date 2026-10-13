@@ -13,6 +13,7 @@ import { Route as AppRouteImport } from './routes/_app'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppJournalRouteImport } from './routes/_app/journal'
+import { Route as AppPromptsRouteImport } from './routes/_app/prompts'
 import { Route as AppUserRouteImport } from './routes/_app/user'
 import { Route as ApiDocumentsIdRouteImport } from './routes/api.documents.$id'
 
@@ -35,6 +36,11 @@ const AppJournalRoute = AppJournalRouteImport.update({
   path: '/journal',
   getParentRoute: () => AppRoute,
 } as any)
+const AppPromptsRoute = AppPromptsRouteImport.update({
+  id: '/prompts',
+  path: '/prompts',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppUserRoute = AppUserRouteImport.update({
   id: '/user',
   path: '/user',
@@ -50,12 +56,14 @@ export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/login': typeof LoginRoute
   '/journal': typeof AppJournalRoute
+  '/prompts': typeof AppPromptsRoute
   '/user': typeof AppUserRoute
   '/api/documents/$id': typeof ApiDocumentsIdRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/journal': typeof AppJournalRoute
+  '/prompts': typeof AppPromptsRoute
   '/user': typeof AppUserRoute
   '/': typeof AppIndexRoute
   '/api/documents/$id': typeof ApiDocumentsIdRoute
@@ -65,20 +73,23 @@ export interface FileRoutesById {
   '/_app': typeof AppRouteWithChildren
   '/login': typeof LoginRoute
   '/_app/journal': typeof AppJournalRoute
+  '/_app/prompts': typeof AppPromptsRoute
   '/_app/user': typeof AppUserRoute
   '/_app/': typeof AppIndexRoute
   '/api/documents/$id': typeof ApiDocumentsIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/journal' | '/user' | '/api/documents/$id'
+  fullPaths:
+    '/' | '/login' | '/journal' | '/prompts' | '/user' | '/api/documents/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/login' | '/journal' | '/user' | '/' | '/api/documents/$id'
+  to: '/login' | '/journal' | '/prompts' | '/user' | '/' | '/api/documents/$id'
   id:
     | '__root__'
     | '/_app'
     | '/login'
     | '/_app/journal'
+    | '/_app/prompts'
     | '/_app/user'
     | '/_app/'
     | '/api/documents/$id'
@@ -120,6 +131,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppJournalRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/prompts': {
+      id: '/_app/prompts'
+      path: '/prompts'
+      fullPath: '/prompts'
+      preLoaderRoute: typeof AppPromptsRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/user': {
       id: '/_app/user'
       path: '/user'
@@ -139,12 +157,14 @@ declare module '@tanstack/react-router' {
 
 interface AppRouteChildren {
   AppJournalRoute: typeof AppJournalRoute
+  AppPromptsRoute: typeof AppPromptsRoute
   AppUserRoute: typeof AppUserRoute
   AppIndexRoute: typeof AppIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppJournalRoute: AppJournalRoute,
+  AppPromptsRoute: AppPromptsRoute,
   AppUserRoute: AppUserRoute,
   AppIndexRoute: AppIndexRoute,
 }

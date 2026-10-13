@@ -5,7 +5,11 @@ export interface AnalyzedField {
   label: string;
   type: DocumentFieldType;
   required: boolean;
-  description?: string;
+  description: string;
+  /** The concrete entity value found in the document (a suggested field value). */
+  value: string;
+  /** Where the value occurs in the source document (format-specific). */
+  anchor: string;
   constraints?: {
     min?: number;
     max?: number;
@@ -38,5 +42,4 @@ export interface GenerationContext {
 
 export interface GenerationResult {
   fields: Record<string, string>;
-  body: string;
 }

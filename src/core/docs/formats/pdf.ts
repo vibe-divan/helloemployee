@@ -1,69 +1,56 @@
-import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
-import fontkit from "@pdf-lib/fontkit";
-import { PDFDocument, rgb, type PDFFont } from "pdf-lib";
+import { PDFDocument } from "pdf-lib";
 import { extractText } from "unpdf";
-import { env } from "@/lib/env";
-import { renderPlainText } from "./render.ts";
-import type { DocumentFormat } from "./types.ts";
+import type { DocumentFormat, FieldFill } from "./types.ts";
 
-const fontPath = env.PDF_FONT_PATH;
-// pdf-lib standard fonts are Latin-1 only; Cyrillic needs an embedded TTF/OTF.
-const canWrite = fontPath.length > 0 && existsSync(fontPath);
-
-function wrap(text: string, font: PDFFont, size: number, maxWidth: number): string[] {
-  const lines: string[] = [];
-  for (const raw of text.split("\n")) {
-    let current = "";
-    for (const word of raw.split(" ")) {
-      const candidate = current ? `${current} ${word}` : word;
-      if (font.widthOfTextAtSize(candidate, size) <= maxWidth || !current) {
-        current = candidate;
-      } else {
-        lines.push(current);
-        current = word;
-      }
-    }
-    lines.push(current);
+function formFieldNames(document: PDFDocument): string[] {
+  try {
+    return document
+      .getForm()
+      .getFields()
+      .map((field) => field.getName());
+  } catch {
+    return [];
   }
-  return lines;
 }
 
 export const pdfFormat: DocumentFormat = {
   id: "pdf",
-  label: "PDF",
+  label: "PDF (формы)",
   extensions: ["pdf"],
-  canWrite,
+  canWrite: true,
   async extractText(data) {
-    const result = await extractText(data, { mergePages: true });
-    return result.text;
+    const { text } = await extractText(data, { mergePages: true });
+    const document = await PDFDocument.load(data);
+    const names = formFieldNames(document);
+    return names.length > 0 ? `${text}\n\nПоля формы PDF: ${names.join(", ")}` : text;
   },
-  async write(doc) {
-    if (!canWrite) {
-      throw new Error("PDF недоступен: задайте PDF_FONT_PATH с TTF/OTF-шрифтом");
+  async fill(source, fills) {
+    const document = await PDFDocument.load(source);
+    const form = document.getForm();
+    if (form.getFields().length === 0) {
+      throw new Error(
+        "PDF не содержит полей формы. Заполнение PDF без форм невозможно — выберите другой формат.",
+      );
     }
 
-    const pdf = await PDFDocument.create();
-    pdf.registerFontkit(fontkit);
-    const font = await pdf.embedFont(await readFile(fontPath), { subset: true });
-
-    const fontSize = 12;
-    const lineHeight = 16;
-    const margin = 48;
-    const height = 842;
-    const lines = wrap(renderPlainText(doc), font, fontSize, 595 - margin * 2);
-
-    let page = pdf.addPage([595, height]);
-    let y = height - margin;
-    for (const line of lines) {
-      if (y < margin) {
-        page = pdf.addPage([595, height]);
-        y = height - margin;
+    const missing: string[] = [];
+    for (const fill of fills as FieldFill[]) {
+      if (!fill.anchor) {
+        continue;
       }
-      page.drawText(line, { x: margin, y, size: fontSize, font, color: rgb(0, 0, 0) });
-      y -= lineHeight;
+      try {
+        form.getTextField(fill.anchor).setText(fill.value);
+      } catch {
+        missing.push(fill.anchor);
+      }
     }
 
-    return pdf.save();
+    if (missing.length > 0) {
+      throw new Error(`В PDF нет полей формы: ${missing.join(", ")}`);
+    }
+
+    // Flattening writes the values into the page content, preserving the layout.
+    form.flatten();
+    return document.save();
   },
 };

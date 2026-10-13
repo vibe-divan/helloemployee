@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { useServerFn } from "@tanstack/react-start";
-import { getActiveDocumentSession, type DocumentSessionView } from "@/core/docs";
+import { useQuery } from "@tanstack/react-query";
+import { activeDocumentSessionQuery } from "@/core/docs";
 import { isActiveStatus } from "@/core/docs/types.ts";
 import { DocumentPicker, DocumentSession } from "@/core/docs/ui";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/lib/ui/card";
+import { ErrorAlert } from "@/lib/ui/error-alert";
 
 export const Route = createFileRoute("/_app/")({
   component: Dashboard,
@@ -12,30 +12,16 @@ export const Route = createFileRoute("/_app/")({
 
 function Dashboard() {
   const { user } = Route.useRouteContext();
-  const fetchActive = useServerFn(getActiveDocumentSession);
-  const [session, setSession] = useState<DocumentSessionView | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data, isPending, isError, error } = useQuery({
+    ...activeDocumentSessionQuery,
+    // Poll while background work (analysis/generation) is in progress.
+    refetchInterval: (query) => {
+      const session = query.state.data?.session;
+      return session && isActiveStatus(session.status) ? 2500 : false;
+    },
+  });
 
-  const refresh = useCallback(async () => {
-    const result = await fetchActive();
-    setSession(result.session);
-    setLoading(false);
-  }, [fetchActive]);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
-
-  // Poll while background work (analysis/generation) is in progress.
-  useEffect(() => {
-    if (!session || !isActiveStatus(session.status)) {
-      return;
-    }
-    const interval = setInterval(() => {
-      void refresh();
-    }, 2500);
-    return () => clearInterval(interval);
-  }, [session, refresh]);
+  const session = data?.session ?? null;
 
   return (
     <div className="grid gap-6">
@@ -44,10 +30,12 @@ function Dashboard() {
         <p className="text-sm text-muted-foreground">Здравствуйте, {user.login}.</p>
       </div>
 
-      {loading ? (
+      {isError ? <ErrorAlert title="Не удалось загрузить сессию" error={error} /> : null}
+
+      {isPending ? (
         <p className="text-sm text-muted-foreground">Загрузка…</p>
-      ) : session ? (
-        <DocumentSession session={session} onChanged={refresh} />
+      ) : isError ? null : session ? (
+        <DocumentSession session={session} />
       ) : (
         <Card>
           <CardHeader>
@@ -58,7 +46,7 @@ function Dashboard() {
         </Card>
       )}
 
-      <DocumentPicker onStarted={refresh} />
+      <DocumentPicker />
     </div>
   );
 }

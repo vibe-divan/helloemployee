@@ -1,5 +1,6 @@
 import { AiError, chat, parseJson, type ChatMessage } from "@/lib/ai";
-import { GENERATE_SYSTEM_PROMPT, generateUserPrompt } from "./prompts.ts";
+import { getPromptContent } from "@/core/prompts/store.ts";
+import { generateUserPrompt } from "./prompts.ts";
 import { docsTools, executeDocsTool } from "./tools.ts";
 import type { GenerationContext, GenerationResult } from "./types.ts";
 
@@ -40,18 +41,16 @@ function normalizeGeneration(raw: GenerationResult, context: GenerationContext):
           ? ""
           : String(value);
   }
-  return {
-    fields: result,
-    body: typeof raw?.body === "string" ? raw.body : "",
-  };
+  return { fields: result };
 }
 
 export async function generateDocument(
   context: GenerationContext,
   problems?: string,
 ): Promise<GenerationResult> {
+  const systemPrompt = await getPromptContent("generate");
   const messages: ChatMessage[] = [
-    { role: "system", content: GENERATE_SYSTEM_PROMPT },
+    { role: "system", content: systemPrompt },
     { role: "user", content: generateUserPrompt(context, problems) },
   ];
   const final = await runToolLoop(messages);

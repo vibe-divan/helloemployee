@@ -3,6 +3,12 @@
  * Please do not edit it manually.
  */
 
+export interface AiPrompt {
+  content: string;
+  key: string;
+  updated_at: string;
+}
+
 export interface Document {
   created_at: string;
   file_name: string;
@@ -16,6 +22,7 @@ export interface Document {
 }
 
 export interface DocumentField {
+  anchor: string | null;
   constraints: string | null;
   created_at: string;
   description: string | null;
@@ -71,6 +78,7 @@ export interface User {
 }
 
 export interface DB {
+  ai_prompt: AiPrompt;
   document: Document;
   document_field: DocumentField;
   document_session: DocumentSession;

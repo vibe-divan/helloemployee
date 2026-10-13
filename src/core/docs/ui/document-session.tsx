@@ -1,11 +1,14 @@
-import { useState } from "react";
-import type { FormEvent } from "react";
-import { useServerFn } from "@tanstack/react-start";
+import { useCallback, useState } from "react";
+import type { FormEvent, ReactNode } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { DownloadIcon, Loader2Icon, XIcon } from "lucide-react";
 import {
-  cancelDocumentSession,
-  generateDocument,
-  updateDocumentFieldValues,
+  cancelDocumentSessionMutation,
+  documentKeys,
+  generateDocumentMutation,
+  updateDocumentFieldValuesMutation,
+  type DocumentField,
+  type DocumentFieldType,
   type DocumentSessionView,
   type DocumentTemplate,
 } from "@/core/docs";
@@ -13,9 +16,34 @@ import { validateFieldValues } from "@/core/docs/validation.ts";
 import { Alert, AlertDescription, AlertTitle } from "@/lib/ui/alert";
 import { Button, buttonVariants } from "@/lib/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/lib/ui/card";
+import { Checkbox } from "@/lib/ui/checkbox";
+import { ErrorAlert } from "@/lib/ui/error-alert";
 import { Input } from "@/lib/ui/input";
 import { Label } from "@/lib/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/lib/ui/select";
 import { cn } from "@/lib/utils";
+
+const TYPE_LABELS: Record<DocumentFieldType, string> = {
+  string: "текст",
+  number: "число",
+  integer: "целое число",
+  boolean: "да/нет",
+  date: "дата",
+  enum: "выбор",
+};
+
+/** Invalidates the queries affected by any document-session mutation. */
+function useRefreshDocumentQueries() {
+  const queryClient = useQueryClient();
+  return useCallback(
+    () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: documentKeys.activeSession() }),
+        queryClient.invalidateQueries({ queryKey: documentKeys.sessions() }),
+      ]),
+    [queryClient],
+  );
+}
 
 function initialValues(template: DocumentTemplate): Record<string, string> {
   const values: Record<string, string> = {};
@@ -25,21 +53,122 @@ function initialValues(template: DocumentTemplate): Record<string, string> {
   return values;
 }
 
+/** Renders a control matching the field type: checkbox, number, select, date or text. */
+function FieldControl({
+  field,
+  value,
+  disabled,
+  invalid,
+  onChange,
+}: {
+  field: DocumentField;
+  value: string;
+  disabled: boolean;
+  invalid: boolean;
+  onChange: (value: string) => void;
+}) {
+  const id = `field-${field.id}`;
+
+  switch (field.type) {
+    case "boolean":
+      return (
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id={id}
+            disabled={disabled}
+            aria-invalid={invalid}
+            checked={value === "true"}
+            onCheckedChange={(checked) => onChange(checked ? "true" : "false")}
+          />
+          <Label htmlFor={id} className="font-normal">
+            Да
+          </Label>
+        </div>
+      );
+    case "enum": {
+      const options = field.constraints.values ?? [];
+      return (
+        <Select
+          value={value || null}
+          disabled={disabled}
+          onValueChange={(next) => onChange(next ?? "")}
+        >
+          <SelectTrigger id={id} aria-invalid={invalid}>
+            <SelectValue placeholder="Выберите значение" />
+          </SelectTrigger>
+          <SelectContent>
+            {options.map((option) => (
+              <SelectItem key={option} value={option}>
+                {option}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      );
+    }
+    case "number":
+    case "integer":
+      return (
+        <Input
+          id={id}
+          type="number"
+          inputMode="decimal"
+          step={field.type === "integer" ? 1 : "any"}
+          disabled={disabled}
+          aria-invalid={invalid}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      );
+    case "date":
+      return (
+        <Input
+          id={id}
+          type="date"
+          disabled={disabled}
+          aria-invalid={invalid}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      );
+    default:
+      return (
+        <Input
+          id={id}
+          type="text"
+          disabled={disabled}
+          aria-invalid={invalid}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      );
+  }
+}
+
 function FieldForm({
   session,
   template,
-  onChanged,
 }: {
   session: DocumentSessionView;
   template: DocumentTemplate;
-  onChanged: () => void;
 }) {
-  const updateValues = useServerFn(updateDocumentFieldValues);
-  const generate = useServerFn(generateDocument);
+  const refresh = useRefreshDocumentQueries();
+  const updateValues = useMutation(updateDocumentFieldValuesMutation);
+  const generate = useMutation(generateDocumentMutation);
   const [values, setValues] = useState<Record<string, string>>(() => initialValues(template));
   const [errors, setErrors] = useState<Record<string, string[]>>({});
-  const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
+
+  const pending = updateValues.isPending || generate.isPending;
+
+  async function runGenerate() {
+    const generated = await generate.mutateAsync({ sessionId: session.id });
+    if (!generated.ok) {
+      setError(generated.error);
+      return;
+    }
+    await refresh();
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -50,10 +179,9 @@ function FieldForm({
       return;
     }
 
-    setPending(true);
     setError("");
     try {
-      const updated = await updateValues({ data: { sessionId: session.id, values } });
+      const updated = await updateValues.mutateAsync({ sessionId: session.id, values });
       if (!updated.ok) {
         setError(updated.error);
         return;
@@ -62,17 +190,13 @@ function FieldForm({
         setErrors(updated.errors);
         return;
       }
-
-      const generated = await generate({ data: { sessionId: session.id } });
-      if (!generated.ok) {
-        setError(generated.error);
-        return;
-      }
-      onChanged();
-    } catch {
-      setError("Не удалось запустить формирование документа");
-    } finally {
-      setPending(false);
+      await runGenerate();
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Не удалось запустить формирование документа",
+      );
     }
   }
 
@@ -86,23 +210,21 @@ function FieldForm({
           type="button"
           disabled={pending}
           onClick={() => {
-            setPending(true);
-            void generate({ data: { sessionId: session.id } })
-              .then((result) => {
-                if (!result.ok) {
-                  setError(result.error);
-                  return;
-                }
-                onChanged();
-              })
-              .finally(() => setPending(false));
+            setError("");
+            void runGenerate().catch((requestError) =>
+              setError(
+                requestError instanceof Error
+                  ? requestError.message
+                  : "Не удалось запустить формирование документа",
+              ),
+            );
           }}
           className="w-fit"
         >
           {pending ? <Loader2Icon className="animate-spin" /> : null}
           Сформировать документ
         </Button>
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        {error ? <ErrorAlert error={error} /> : null}
       </div>
     );
   }
@@ -111,33 +233,41 @@ function FieldForm({
     <form onSubmit={handleSubmit} className="grid gap-4">
       {template.fields.map((field) => {
         const fieldErrors = errors[field.name] ?? [];
+        const invalid = fieldErrors.length > 0;
         return (
           <div key={field.id} className="grid gap-2">
-            <Label htmlFor={field.id}>
-              {field.label}
-              {field.required ? <span className="text-destructive"> *</span> : null}
-              <span className="text-xs text-muted-foreground"> ({field.type})</span>
-            </Label>
-            <Input
-              id={field.id}
-              value={values[field.name] ?? ""}
-              disabled={pending}
-              aria-invalid={fieldErrors.length > 0}
-              onChange={(event) =>
-                setValues((previous) => ({ ...previous, [field.name]: event.target.value }))
-              }
-            />
+            {field.type !== "boolean" ? (
+              <Label htmlFor={`field-${field.id}`}>
+                {field.label}
+                {field.required ? <span className="text-destructive"> *</span> : null}
+                <span className="text-xs text-muted-foreground"> ({TYPE_LABELS[field.type]})</span>
+              </Label>
+            ) : (
+              <p className="text-sm font-medium">
+                {field.label}
+                {field.required ? <span className="text-destructive"> *</span> : null}
+                <span className="text-xs font-normal text-muted-foreground">
+                  {" "}
+                  ({TYPE_LABELS[field.type]})
+                </span>
+              </p>
+            )}
             {field.description ? (
               <p className="text-xs text-muted-foreground">{field.description}</p>
             ) : null}
-            {fieldErrors.length > 0 ? (
-              <p className="text-sm text-destructive">{fieldErrors.join("; ")}</p>
-            ) : null}
+            <FieldControl
+              field={field}
+              value={values[field.name] ?? ""}
+              disabled={pending}
+              invalid={invalid}
+              onChange={(next) => setValues((previous) => ({ ...previous, [field.name]: next }))}
+            />
+            {invalid ? <p className="text-sm text-destructive">{fieldErrors.join("; ")}</p> : null}
           </div>
         );
       })}
 
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      {error ? <ErrorAlert error={error} /> : null}
 
       <Button type="submit" disabled={pending} className="w-fit">
         {pending ? <Loader2Icon className="animate-spin" /> : null}
@@ -147,30 +277,28 @@ function FieldForm({
   );
 }
 
-export function DocumentSession({
-  session,
-  onChanged,
-}: {
-  session: DocumentSessionView;
-  onChanged: () => void;
-}) {
-  const cancel = useServerFn(cancelDocumentSession);
-  const [pending, setPending] = useState(false);
+export function DocumentSession({ session }: { session: DocumentSessionView }) {
+  const refresh = useRefreshDocumentQueries();
+  const cancel = useMutation(cancelDocumentSessionMutation);
+  const [cancelError, setCancelError] = useState<unknown>(null);
 
   async function handleCancel() {
-    setPending(true);
+    setCancelError(null);
     try {
-      await cancel({ data: { sessionId: session.id } });
-      onChanged();
-    } finally {
-      setPending(false);
+      await cancel.mutateAsync({ sessionId: session.id });
+      await refresh();
+    } catch (requestError) {
+      setCancelError(requestError);
     }
   }
 
+  const pending = cancel.isPending;
   const title = session.template?.title ?? session.sourceFileName ?? "Документ";
 
+  let content: ReactNode = null;
+
   if (session.status === "analyzing") {
-    return (
+    content = (
       <Card>
         <CardHeader>
           <CardTitle>Анализ документа</CardTitle>
@@ -192,10 +320,8 @@ export function DocumentSession({
         </CardContent>
       </Card>
     );
-  }
-
-  if (session.status === "generating") {
-    return (
+  } else if (session.status === "generating") {
+    content = (
       <Card>
         <CardHeader>
           <CardTitle>Формирование документа</CardTitle>
@@ -218,17 +344,15 @@ export function DocumentSession({
         </CardContent>
       </Card>
     );
-  }
-
-  if (session.status === "awaiting_input" && session.template) {
-    return (
+  } else if (session.status === "awaiting_input" && session.template) {
+    content = (
       <Card>
         <CardHeader>
           <CardTitle>{title}</CardTitle>
           <CardDescription>Заполните поля — затем ИИ сформирует документ.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4">
-          <FieldForm session={session} template={session.template} onChanged={onChanged} />
+          <FieldForm session={session} template={session.template} />
           <Button
             type="button"
             variant="ghost"
@@ -242,10 +366,8 @@ export function DocumentSession({
         </CardContent>
       </Card>
     );
-  }
-
-  if (session.status === "completed") {
-    return (
+  } else if (session.status === "completed") {
+    content = (
       <Card>
         <CardHeader>
           <CardTitle>{title}</CardTitle>
@@ -276,10 +398,8 @@ export function DocumentSession({
         </CardContent>
       </Card>
     );
-  }
-
-  if (session.status === "failed") {
-    return (
+  } else if (session.status === "failed") {
+    content = (
       <Card>
         <CardHeader>
           <CardTitle>Не удалось обработать документ</CardTitle>
@@ -305,5 +425,10 @@ export function DocumentSession({
     );
   }
 
-  return null;
+  return (
+    <div className="grid gap-4">
+      {cancelError ? <ErrorAlert title="Не удалось обновить сессию" error={cancelError} /> : null}
+      {content}
+    </div>
+  );
 }

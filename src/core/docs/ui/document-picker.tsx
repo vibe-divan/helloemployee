@@ -1,39 +1,26 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import type { FormEvent } from "react";
-import { useServerFn } from "@tanstack/react-start";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2Icon, UploadIcon } from "lucide-react";
-import { getDocumentOptions, startDocumentSession, type OutputFormatOption } from "@/core/docs";
+import { documentKeys, documentOptionsQuery, startDocumentSessionMutation } from "@/core/docs";
 import { Alert, AlertDescription, AlertTitle } from "@/lib/ui/alert";
 import { Button } from "@/lib/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/lib/ui/card";
+import { ErrorAlert } from "@/lib/ui/error-alert";
 import { Label } from "@/lib/ui/label";
 
-export function DocumentPicker({ onStarted }: { onStarted: () => void }) {
-  const fetchOptions = useServerFn(getDocumentOptions);
-  const startSession = useServerFn(startDocumentSession);
+export function DocumentPicker() {
+  const queryClient = useQueryClient();
+  const {
+    data: options,
+    isError: optionsError,
+    error: optionsErrorValue,
+  } = useQuery(documentOptionsQuery);
+  const startSession = useMutation(startDocumentSessionMutation);
   const inputRef = useRef<HTMLInputElement>(null);
-  const [outputFormats, setOutputFormats] = useState<OutputFormatOption[]>([]);
-  const [accept, setAccept] = useState("");
-  const [outputFormat, setOutputFormat] = useState("docx");
-  const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
 
-  useEffect(() => {
-    void fetchOptions().then((options) => {
-      setOutputFormats(options.outputFormats);
-      setAccept(options.inputExtensions.map((extension) => `.${extension}`).join(","));
-      const preferred = options.outputFormats.find(
-        (format) => format.id === "docx" && format.available,
-      );
-      if (!preferred) {
-        const first = options.outputFormats.find((format) => format.available);
-        if (first) {
-          setOutputFormat(first.id);
-        }
-      }
-    });
-  }, [fetchOptions]);
+  const accept = options?.inputExtensions.map((extension) => `.${extension}`).join(",") ?? "";
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -43,52 +30,43 @@ export function DocumentPicker({ onStarted }: { onStarted: () => void }) {
       return;
     }
 
-    setPending(true);
     setError("");
-    setNotice("");
     try {
-      const formData = new FormData();
-      formData.set("file", file);
-      formData.set("outputFormat", outputFormat);
-      const result = await startSession({ data: formData });
+      const result = await startSession.mutateAsync(file);
       if (!result.ok) {
         setError(result.error);
         return;
       }
-      if (result.notice) {
-        setNotice(result.notice);
-      }
       if (inputRef.current) {
         inputRef.current.value = "";
       }
-      onStarted();
+      await queryClient.invalidateQueries({ queryKey: documentKeys.activeSession() });
+      await queryClient.invalidateQueries({ queryKey: documentKeys.sessions() });
     } catch {
       setError("Не удалось загрузить документ");
-    } finally {
-      setPending(false);
     }
   }
+
+  const pending = startSession.isPending;
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>Новый документ</CardTitle>
         <CardDescription>
-          Загрузите документ — ИИ определит поля для заполнения и создаст шаблон.
+          Загрузите документ — ИИ определит поля для заполнения и создаст шаблон. Итоговый файл
+          сохранит исходный формат и оформление.
         </CardDescription>
       </CardHeader>
       <form onSubmit={handleSubmit}>
         <CardContent className="grid gap-4">
+          {optionsError ? (
+            <ErrorAlert title="Не удалось загрузить форматы" error={optionsErrorValue} />
+          ) : null}
           {error ? (
             <Alert variant="destructive">
               <AlertTitle>Ошибка</AlertTitle>
               <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          ) : null}
-          {notice ? (
-            <Alert>
-              <AlertTitle>Внимание</AlertTitle>
-              <AlertDescription>{notice}</AlertDescription>
             </Alert>
           ) : null}
 
@@ -102,24 +80,6 @@ export function DocumentPicker({ onStarted }: { onStarted: () => void }) {
               disabled={pending}
               className="flex h-9 w-full items-center rounded-lg border border-input bg-transparent px-2.5 text-sm file:mr-2 file:border-0 file:bg-transparent file:text-sm file:font-medium"
             />
-          </div>
-
-          <div className="grid gap-2">
-            <Label htmlFor="document-format">Формат результата</Label>
-            <select
-              id="document-format"
-              value={outputFormat}
-              disabled={pending}
-              onChange={(event) => setOutputFormat(event.target.value)}
-              className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring"
-            >
-              {outputFormats.map((format) => (
-                <option key={format.id} value={format.id} disabled={!format.available}>
-                  {format.label}
-                  {format.available ? "" : " (недоступен)"}
-                </option>
-              ))}
-            </select>
           </div>
 
           <Button type="submit" disabled={pending} className="w-fit">

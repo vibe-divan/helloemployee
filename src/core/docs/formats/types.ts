@@ -1,14 +1,17 @@
-/** Content passed to format writers. `body` is the AI-rendered document text. */
-export interface GeneratedDocument {
-  title: string;
-  body: string;
-  fields: Array<{ label: string; value: string }>;
+import type { DocumentFieldType } from "../types.ts";
+
+/** A single substitution into the source document (in place). */
+export interface FieldFill {
+  name: string;
+  type: DocumentFieldType;
+  anchor: string | null;
+  value: string;
 }
 
 /**
- * A supported document format. `canWrite` is false when the environment cannot
- * produce it (e.g. PDF without a Cyrillic-capable font), so the caller can fall
- * back and notify the user.
+ * A supported document format. `fill` edits the ORIGINAL bytes so layout,
+ * fonts and spacing stay untouched. `canWrite` is false when the environment
+ * cannot produce the format.
  */
 export interface DocumentFormat {
   id: string;
@@ -16,5 +19,5 @@ export interface DocumentFormat {
   extensions: string[];
   canWrite: boolean;
   extractText(data: Uint8Array): Promise<string>;
-  write(doc: GeneratedDocument): Promise<Uint8Array>;
+  fill(source: Uint8Array, fills: FieldFill[]): Promise<Uint8Array>;
 }

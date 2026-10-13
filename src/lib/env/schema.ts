@@ -13,9 +13,6 @@ export const envSchema = v.object({
 
   STORAGE_DIR: v.optional(v.string(), "./.data/storage"),
   QUEUE_DB_PATH: v.optional(v.string(), "./.data/queue.db"),
-
-  // Optional TTF/OTF used to render Cyrillic text into generated PDFs.
-  PDF_FONT_PATH: v.optional(v.string(), ""),
 });
 
 export type Env = v.InferOutput<typeof envSchema>;

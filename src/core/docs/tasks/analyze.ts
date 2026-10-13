@@ -62,6 +62,8 @@ export async function runAnalysis(sessionId: string): Promise<void> {
         required: field.required,
         constraints: field.constraints ?? {},
         description: field.description ?? null,
+        anchor: field.anchor,
+        value: field.value || null,
         position: index,
       })),
     );

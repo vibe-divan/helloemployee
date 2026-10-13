@@ -1,6 +1,6 @@
 import { storage } from "@/lib/storage";
 import { generateDocument, type GenerationContext } from "../ai";
-import { getFormat, mimeForFormat, type GeneratedDocument } from "../formats";
+import { getFormat, mimeForFormat, type FieldFill } from "../formats";
 import {
   currentTimestamp,
   findDocumentById,
@@ -30,38 +30,39 @@ function collectValues(fields: DocumentField[]): Record<string, string> {
   return values;
 }
 
+/** Substitutes values into the ORIGINAL file, preserving its formatting. */
 async function persistResult(
   session: DocumentSession,
-  title: string,
+  formatId: string,
+  sourceBytes: Uint8Array,
   fields: DocumentField[],
   values: Record<string, string>,
-  body: string,
 ): Promise<void> {
-  const formatId = session.outputFormat ?? "docx";
   const format = getFormat(formatId);
   if (!format || !format.canWrite) {
-    throw new Error(`Формат вывода недоступен: ${formatId}`);
+    throw new Error(`Формат недоступен для заполнения: ${formatId}`);
   }
 
-  const generated: GeneratedDocument = {
-    title,
-    body,
-    fields: fields.map((field) => ({ label: field.label, value: values[field.name] ?? "" })),
-  };
-  const bytes = await format.write(generated);
+  const fills: FieldFill[] = fields.map((field) => ({
+    name: field.name,
+    type: field.type,
+    anchor: field.anchor,
+    value: values[field.name] ?? "",
+  }));
+  const resultBytes = await format.fill(sourceBytes, fills);
 
   const resultId = crypto.randomUUID();
   const storageKey = `documents/${resultId}.${format.id}`;
-  await storage.put(storageKey, bytes, mimeForFormat(format.id));
+  await storage.put(storageKey, resultBytes, mimeForFormat(format.id));
   await insertDocument({
     id: resultId,
     ownerId: session.ownerId,
     role: "result",
     storageKey,
-    fileName: `${title}.${format.id}`,
+    fileName: `filled.${format.id}`,
     mimeType: mimeForFormat(format.id),
     format: format.id,
-    size: bytes.byteLength,
+    size: resultBytes.byteLength,
   });
 
   await updateSession(session.id, {
@@ -73,9 +74,9 @@ async function persistResult(
 }
 
 /**
- * Fills the template with the AI (tools allowed), validates the result and
- * retries with the problem context up to `maxAttempts`. Stops early if the user
- * cancels the session. Fails with a clear message when values stay invalid.
+ * Fills the template with the AI (tools allowed), validates values and retries
+ * with the problem context up to `maxAttempts`, then substitutes the values into
+ * the original document. Stops early if the user cancels the session.
  */
 export async function runGeneration(sessionId: string): Promise<void> {
   const session = await findSessionById(sessionId);
@@ -92,16 +93,15 @@ export async function runGeneration(sessionId: string): Promise<void> {
     if (!document) {
       throw new Error("Исходный документ не найден");
     }
+
+    const sourceBytes = await storage.get(document.storage_key);
     const sourceFormat = getFormat(document.format);
-    const sourceText = sourceFormat
-      ? await sourceFormat.extractText(await storage.get(document.storage_key))
-      : "";
+    const sourceText = sourceFormat ? await sourceFormat.extractText(sourceBytes) : "";
 
     const fields = template.fields;
     const values = collectValues(fields);
     let problems: string | undefined;
     let lastErrors: Record<string, string[]> = {};
-    let body = "";
 
     for (let attempt = 1; attempt <= session.maxAttempts; attempt += 1) {
       if (await isStopped(sessionId)) {
@@ -127,7 +127,7 @@ export async function runGeneration(sessionId: string): Promise<void> {
           values[name] = value;
         }
       }
-      body = result.body;
+
       lastErrors = validateFieldValues(fields, values);
       const hasErrors = Object.keys(lastErrors).length > 0;
 
@@ -135,7 +135,7 @@ export async function runGeneration(sessionId: string): Promise<void> {
       await updateSession(sessionId, { attempts: attempt });
 
       if (!hasErrors) {
-        await persistResult(session, template.title, fields, values, body);
+        await persistResult(session, document.format, sourceBytes, fields, values);
         return;
       }
       problems = formatProblems(lastErrors);

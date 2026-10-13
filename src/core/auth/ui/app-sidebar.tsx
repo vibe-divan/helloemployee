@@ -1,8 +1,14 @@
-import { useState } from "react";
 import { Link, useRouter, useRouterState } from "@tanstack/react-router";
-import { useServerFn } from "@tanstack/react-start";
-import { BoxesIcon, FilesIcon, LayoutDashboardIcon, LogOutIcon, UsersIcon } from "lucide-react";
-import { signOut, type AuthUser } from "@/core/auth";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  BoxesIcon,
+  FilesIcon,
+  LayoutDashboardIcon,
+  LogOutIcon,
+  SparklesIcon,
+  UsersIcon,
+} from "lucide-react";
+import { signOutMutation, type AuthUser } from "@/core/auth";
 import { Avatar, AvatarFallback } from "@/lib/ui/avatar";
 import {
   Sidebar,
@@ -21,25 +27,27 @@ import {
 const navItems = [
   { to: "/", label: "Dashboard", icon: LayoutDashboardIcon },
   { to: "/journal", label: "Журнал", icon: FilesIcon },
+  { to: "/prompts", label: "Промпты", icon: SparklesIcon },
   { to: "/user", label: "Users", icon: UsersIcon },
 ] as const;
 
 export function AppSidebar({ user }: { user: AuthUser }) {
   const router = useRouter();
-  const requestSignOut = useServerFn(signOut);
-  const [pending, setPending] = useState(false);
+  const queryClient = useQueryClient();
+  const signOut = useMutation(signOutMutation);
   const pathname = useRouterState({ select: (state) => state.location.pathname });
 
   const initials = user.login.slice(0, 2).toUpperCase();
 
   async function handleSignOut() {
-    setPending(true);
     try {
-      await requestSignOut();
+      await signOut.mutateAsync();
+      queryClient.clear();
       await router.invalidate();
       await router.navigate({ to: "/login" });
-    } finally {
-      setPending(false);
+    } catch {
+      // Sign out must not leave the user stuck; the session is cleared server-side anyway.
+      window.location.assign("/login");
     }
   }
 
@@ -97,7 +105,11 @@ export function AppSidebar({ user }: { user: AuthUser }) {
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton tooltip="Sign out" onClick={handleSignOut} disabled={pending}>
+            <SidebarMenuButton
+              tooltip="Sign out"
+              onClick={handleSignOut}
+              disabled={signOut.isPending}
+            >
               <LogOutIcon />
               <span>Sign out</span>
             </SidebarMenuButton>

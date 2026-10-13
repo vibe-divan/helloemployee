@@ -4,7 +4,17 @@ export { generateDocument, type GenerateDocumentParams } from "./generate-docume
 export { getActiveDocumentSession } from "./get-active-session.ts";
 export { getDocumentSession } from "./get-session.ts";
 export { listDocumentSessions } from "./list-sessions.ts";
-export { getDocumentOptions, type OutputFormatOption } from "./options.ts";
+export { getDocumentOptions, type DocumentOptions } from "./options.ts";
+export {
+  activeDocumentSessionQuery,
+  cancelDocumentSessionMutation,
+  documentKeys,
+  documentOptionsQuery,
+  documentSessionsQuery,
+  generateDocumentMutation,
+  startDocumentSessionMutation,
+  updateDocumentFieldValuesMutation,
+} from "./queries.ts";
 export { startDocumentSession } from "./start-session.ts";
 export { updateDocumentFieldValues, type UpdateFieldValuesParams } from "./update-field-values.ts";
 export type {
