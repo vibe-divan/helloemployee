@@ -349,9 +349,18 @@ export function DocumentSession({ session }: { session: DocumentSessionView }) {
       <Card>
         <CardHeader>
           <CardTitle>{title}</CardTitle>
-          <CardDescription>Заполните поля — затем ИИ сформирует документ.</CardDescription>
+          <CardDescription>
+            Шаблон — это документ с подстановочными значениями. Проверьте поля и сформируйте
+            документ; сам шаблон можно скачать и использовать повторно.
+          </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4">
+          <a
+            href={`/api/sessions/${session.id}/template`}
+            className={cn(buttonVariants({ variant: "outline" }), "w-fit")}
+          >
+            <DownloadIcon /> Скачать шаблон
+          </a>
           <FieldForm session={session} template={session.template} />
           <Button
             type="button"

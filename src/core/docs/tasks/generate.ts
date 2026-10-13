@@ -1,6 +1,7 @@
 import { storage } from "@/lib/storage";
 import { generateDocument, type GenerationContext } from "../ai";
 import { getFormat, mimeForFormat, type FieldFill } from "../formats";
+import { placeholder, templateStorageKey } from "../template.ts";
 import {
   currentTimestamp,
   findDocumentById,
@@ -30,11 +31,11 @@ function collectValues(fields: DocumentField[]): Record<string, string> {
   return values;
 }
 
-/** Substitutes values into the ORIGINAL file, preserving its formatting. */
+/** Substitutes values into the template's placeholders, preserving formatting. */
 async function persistResult(
   session: DocumentSession,
   formatId: string,
-  sourceBytes: Uint8Array,
+  templateBytes: Uint8Array,
   fields: DocumentField[],
   values: Record<string, string>,
 ): Promise<void> {
@@ -46,10 +47,10 @@ async function persistResult(
   const fills: FieldFill[] = fields.map((field) => ({
     name: field.name,
     type: field.type,
-    anchor: field.anchor,
+    anchor: placeholder(field.name),
     value: values[field.name] ?? "",
   }));
-  const resultBytes = await format.fill(sourceBytes, fills);
+  const resultBytes = await format.fill(templateBytes, fills);
 
   const resultId = crypto.randomUUID();
   const storageKey = `documents/${resultId}.${format.id}`;
@@ -97,6 +98,7 @@ export async function runGeneration(sessionId: string): Promise<void> {
     const sourceBytes = await storage.get(document.storage_key);
     const sourceFormat = getFormat(document.format);
     const sourceText = sourceFormat ? await sourceFormat.extractText(sourceBytes) : "";
+    const templateBytes = await storage.get(templateStorageKey(session.id, document.format));
 
     const fields = template.fields;
     const values = collectValues(fields);
@@ -135,7 +137,7 @@ export async function runGeneration(sessionId: string): Promise<void> {
       await updateSession(sessionId, { attempts: attempt });
 
       if (!hasErrors) {
-        await persistResult(session, document.format, sourceBytes, fields, values);
+        await persistResult(session, document.format, templateBytes, fields, values);
         return;
       }
       problems = formatProblems(lastErrors);

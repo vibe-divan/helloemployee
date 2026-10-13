@@ -16,6 +16,7 @@ import { Route as AppJournalRouteImport } from './routes/_app/journal'
 import { Route as AppPromptsRouteImport } from './routes/_app/prompts'
 import { Route as AppUserRouteImport } from './routes/_app/user'
 import { Route as ApiDocumentsIdRouteImport } from './routes/api.documents.$id'
+import { Route as ApiSessionsIdTemplateRouteImport } from './routes/api.sessions.$id.template'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
@@ -51,6 +52,11 @@ const ApiDocumentsIdRoute = ApiDocumentsIdRouteImport.update({
   path: '/api/documents/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiSessionsIdTemplateRoute = ApiSessionsIdTemplateRouteImport.update({
+  id: '/api/sessions/$id/template',
+  path: '/api/sessions/$id/template',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
@@ -59,6 +65,7 @@ export interface FileRoutesByFullPath {
   '/prompts': typeof AppPromptsRoute
   '/user': typeof AppUserRoute
   '/api/documents/$id': typeof ApiDocumentsIdRoute
+  '/api/sessions/$id/template': typeof ApiSessionsIdTemplateRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
@@ -67,6 +74,7 @@ export interface FileRoutesByTo {
   '/user': typeof AppUserRoute
   '/': typeof AppIndexRoute
   '/api/documents/$id': typeof ApiDocumentsIdRoute
+  '/api/sessions/$id/template': typeof ApiSessionsIdTemplateRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -77,13 +85,27 @@ export interface FileRoutesById {
   '/_app/user': typeof AppUserRoute
   '/_app/': typeof AppIndexRoute
   '/api/documents/$id': typeof ApiDocumentsIdRoute
+  '/api/sessions/$id/template': typeof ApiSessionsIdTemplateRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/login' | '/journal' | '/prompts' | '/user' | '/api/documents/$id'
+    | '/'
+    | '/login'
+    | '/journal'
+    | '/prompts'
+    | '/user'
+    | '/api/documents/$id'
+    | '/api/sessions/$id/template'
   fileRoutesByTo: FileRoutesByTo
-  to: '/login' | '/journal' | '/prompts' | '/user' | '/' | '/api/documents/$id'
+  to:
+    | '/login'
+    | '/journal'
+    | '/prompts'
+    | '/user'
+    | '/'
+    | '/api/documents/$id'
+    | '/api/sessions/$id/template'
   id:
     | '__root__'
     | '/_app'
@@ -93,12 +115,14 @@ export interface FileRouteTypes {
     | '/_app/user'
     | '/_app/'
     | '/api/documents/$id'
+    | '/api/sessions/$id/template'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
   LoginRoute: typeof LoginRoute
   ApiDocumentsIdRoute: typeof ApiDocumentsIdRoute
+  ApiSessionsIdTemplateRoute: typeof ApiSessionsIdTemplateRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -152,6 +176,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiDocumentsIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/sessions/$id/template': {
+      id: '/api/sessions/$id/template'
+      path: '/api/sessions/$id/template'
+      fullPath: '/api/sessions/$id/template'
+      preLoaderRoute: typeof ApiSessionsIdTemplateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -175,6 +206,7 @@ const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
   LoginRoute: LoginRoute,
   ApiDocumentsIdRoute: ApiDocumentsIdRoute,
+  ApiSessionsIdTemplateRoute: ApiSessionsIdTemplateRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
